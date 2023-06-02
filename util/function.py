@@ -46,3 +46,18 @@ def save_model(logger,save_filename, model,epoch,optimizer,loss,acc,init_lr,batc
         'seed' : seed
         }, save_filename)
     logger.info("Saved model checkpoint to [DIR: %s] // loss = %f// accuracy = %f ", save_filename,loss,accuracy)
+    
+    
+    
+## Hook
+class Hook():
+    def __init__(self, module, backward=False):
+        if backward == False:
+            self.hook = module.register_forward_hook(self.hook_fn)
+        else:
+            self.hook = module.register_backward_hook(self.hook_fn)
+    def hook_fn(self,module,input,output):
+        self.input = input
+        self.output = output
+    def close(self):
+        self.hook.remove()
