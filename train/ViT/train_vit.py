@@ -35,20 +35,20 @@ def train_visionTransformer(args,logger,saved_model_filename,training_set:list,v
         
     # Dataloader Training Dataset
     train_dataset = ImageNet_dataloader(path=training_set, input_size=args.input_size,num_class=num_class,cutmix_p = args.cutmix_p,beta = args.beta,training=True)
-    # weights,count = make_weights_for_balanced_classes(training_set)
-    # # print(f'weights : {weights}')
-    # weights = torch.DoubleTensor(weights)
-    # sampler = torch.utils.data.sampler.WeightedRandomSampler(weights,len(weights))
+    weights,count = make_weights_for_balanced_classes(training_set)
+    # print(f'weights : {weights}')
+    weights = torch.DoubleTensor(weights)
+    sampler = torch.utils.data.sampler.WeightedRandomSampler(weights,len(weights))
     train_dataloader = DataLoader(dataset=train_dataset,batch_size=args.batch_size, shuffle=True, num_workers=(cpu_num//4))
     #train_dataloader = DataLoader(dataset=train_dataset,batch_size=10000,sampler=sampler,num_workers=20)
 
     # Dataload Validation Dataset
     val_dataset = ImageNet_dataloader(path=validation_set, input_size=args.input_size,num_class=num_class,cutmix_p = 0.,beta = 0.,training=False)
-    val_dataloader = DataLoader(dataset=val_dataset, batch_size=32, num_workers=(cpu_num//4))
+    val_dataloader = DataLoader(dataset=val_dataset, batch_size=8, num_workers=(cpu_num//4))
 
     # Dataloader Test Dataset
     test_dataset = ImageNet_dataloader(path=test_set, input_size=args.input_size,num_class=num_class,cutmix_p = 0.,beta = 0.,training=False)
-    test_dataloader = DataLoader(dataset=test_dataset, batch_size=32, num_workers=(cpu_num//4))
+    test_dataloader = DataLoader(dataset=test_dataset, batch_size=8, num_workers=(cpu_num//4))
     
     # information of vision transformer
     if args.model_name == 'ViT-B':
@@ -225,9 +225,10 @@ def train_visionTransformer(args,logger,saved_model_filename,training_set:list,v
         logger.info(output_str)
         
         if epoch == 0:
+            test_total_count = 0
+            test_total_data = 0.   
             best_accuracy = val_accuracy
             best_epoch = epoch
-            save_file = save_filename
             stop_count = 0
             start_time = time.time()
             model.eval()
@@ -258,7 +259,7 @@ def train_visionTransformer(args,logger,saved_model_filename,training_set:list,v
                         % (epoch + 1, args.epochs, time.time() - start_time,
                             test_total_count, test_total_data, test_accuracy)
             logger.info(output_str)
-            torch.save({'model_state_dict':model.module.state_dict() if len(gpu_num) > 1 else model.state_dict(),
+            torch.save({'model_state_dict':model.module.state_dict() if len(args.gpus) > 1 else model.state_dict(),
                             'epoch' : epoch,
                             'optimizer_sate_dict':optimizer.state_dict(),
                             'train_acc':train_accuracy,
@@ -271,7 +272,6 @@ def train_visionTransformer(args,logger,saved_model_filename,training_set:list,v
             if best_accuracy < val_accuracy:
                 best_accuracy = val_accuracy
                 best_epoch = epoch
-                save_file = save_filename
                 
                 stop_count = 0
                 test_total_count = 0
@@ -306,7 +306,7 @@ def train_visionTransformer(args,logger,saved_model_filename,training_set:list,v
                             % (epoch + 1, args.epochs, time.time() - start_time,
                                 test_total_count, test_total_data, test_accuracy)
                 logger.info(output_str)
-                torch.save({'model_state_dict':model.module.state_dict() if len(gpu_num) > 1 else model.state_dict(),
+                torch.save({'model_state_dict':model.module.state_dict() if len(args.gpus) > 1 else model.state_dict(),
                             'epoch' : epoch,
                             'optimizer_sate_dict':optimizer.state_dict(),
                             'train_acc':train_accuracy,
@@ -316,7 +316,7 @@ def train_visionTransformer(args,logger,saved_model_filename,training_set:list,v
                             'stop_iter':stop_count}, saved_model_filename)
             else:
                 stop_count += 1
-        if stop_count > stop_iter:
+        if stop_count > args.early_stopping:
             print('Early Stopping')
             break
         
